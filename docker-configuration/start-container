@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+
+if [ ! "production" == "$APP_ENV" ] && [ ! "prod" == "$APP_ENV" ]; then
+    # Non-Production Environment
+    # Enable xdebug
+
+    ## FPM
+    ln -sf /etc/php/7.4/mods-available/xdebug.ini /etc/php/7.4fpm/conf.d/20-xdebug.ini
+
+    ## CLI
+    ln -sf /etc/php/7.4/mods-available/xdebug.ini /etc/php/7.4/cli/conf.d/20-xdebug.ini
+else
+    # Production Environment
+    # Disable xdebug
+
+    ## FPM
+    if [ -e /etc/php/7.4/fpm/conf.d/20-xdebug.ini ]; then
+        rm -f /etc/php/7.4/fpm/conf.d/20-xdebug.ini
+    fi
+
+    ## CLI
+    if [ -e /etc/php/7.4/cli/conf.d/20-xdebug.ini ]; then
+        rm -f /etc/php/7.4/cli/conf.d/20-xdebug.ini
+    fi
+fi
+
+# Config /etc/php/7.4/mods-available/xdebug.ini
+sed -i "s/xdebug\.remote_host\=.*/xdebug\.remote_host\=$XDEBUG_HOST/g" /etc/php/7.4/mods-available/xdebug.ini
+
+if [ ! "production" == "$APP_ENV" ] && [ ! "prod" == "$APP_ENV" ]; then
+
+    echo $(date +%F_%T) >> docker_env_parameters_check.txt
+
+    echo "APP_ENV: " $APP_ENV >> docker_env_parameters_check.txt
+    echo "APP_PORT: " $APP_PORT >> docker_env_parameters_check.txt
+    echo "APP_CONTAINER_PORT: " $APP_CONTAINER_PORT >> docker_env_parameters_check.txt
+    echo "XDEBUG_HOST: " $XDEBUG_HOST >> docker_env_parameters_check.txt
+
+    echo "DB_PORT: " $DB_PORT >> docker_env_parameters_check.txt
+    echo "DB_CONTAINER_PORT: " $DB_CONTAINER_PORT >> docker_env_parameters_check.txt
+    echo "MYSQL_ROOT_PASSWORD: " $MYSQL_ROOT_PASSWORD >> docker_env_parameters_check.txt
+    echo "MYSQL_DATABASE: " $MYSQL_DATABASE >> docker_env_parameters_check.txt
+    echo "MYSQL_USER: " $MYSQL_USER >> docker_env_parameters_check.txt
+    echo "MYSQL_PASSWORD: " $MYSQL_PASSWORD >> docker_env_parameters_check.txt
+    echo "" >> docker_env_parameters_check.txt
+
+else
+
+    if [ -f docker_env_parameters_check.txt ]; then
+      rm docker_env_parameters_check.txt
+    fi
+fi
+
+php -S 0.0.0.0:80 -t $APP_INDEX_DIRECTORY
+
+##
+# Ensure /.composer exists and is writable
+#
+if [ ! -d /.composer ]; then
+    mkdir /.composer
+fi
+
+chmod -R ugo+rw /.composer
+
+##
+# Run a command or start supervisord (default to supervisord)
+#
+if [ $# -gt 0 ];then
+    # If we passed a command, run it
+    exec "$@"
+else
+    # Otherwise start supervisord
+    /usr/bin/supervisord
+fi
